@@ -43,6 +43,10 @@ body.admin .pen{display:block}
 #modalBox input{width:100%;margin-bottom:10px}
 .mrow{display:flex;gap:8px}
 .mrow button{flex:1}
+@media(min-width:721px){
+ body.admin main{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start;max-width:1280px}
+ body.admin #adminPanel{position:sticky;top:64px;max-height:calc(100vh - 80px);overflow-y:auto}
+}
 @media(max-width:720px){
  .head{display:none}
  .week{grid-template-columns:1fr}
@@ -68,8 +72,10 @@ body.admin .pen{display:block}
   <div id="plist"></div>
   <div id="addRow"><input id="addName" placeholder="Новый ник или группа через запятую"><button id="addBtn">Добавить</button></div>
  </section>
- <div id="status"></div>
- <section id="schedule"></section>
+  <div id="content">
+   <div id="status"></div>
+   <section id="schedule"></section>
+  </div>
 </main>
 <div id="modal" hidden>
  <div id="modalBox">
