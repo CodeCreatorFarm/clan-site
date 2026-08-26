@@ -43,6 +43,15 @@ body.admin .pen{display:block}
 #modalBox input{width:100%;margin-bottom:10px}
 .mrow{display:flex;gap:8px}
 .mrow button{flex:1}
+.head div:nth-child(2),.cell:nth-child(3){border-top:3px solid #ff6b6b}
+.head div:nth-child(3),.cell:nth-child(4){border-top:3px solid #ffa94d}
+.head div:nth-child(4),.cell:nth-child(5){border-top:3px solid #51cf66}
+.head div:nth-child(5),.cell:nth-child(6){border-top:3px solid #5b8cff}
+.week.current .cell{background:#232c4a;border-color:var(--accent)}
+.week.current .wnum,.week.current .wtitle b{color:var(--accent);font-weight:700}
+.prow{border-top:2px solid transparent}
+.prow.dragover{border-top-color:var(--accent)}
+.prow[draggable="true"]{cursor:grab}
 @media(min-width:721px){
  body.admin main{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start;max-width:1280px}
  body.admin #adminPanel{position:sticky;top:64px;max-height:calc(100vh - 80px);overflow-y:auto}
@@ -170,7 +179,8 @@ function render() {
     const ds = new Date(start); ds.setDate(ds.getDate() + 7 * w);
     const de = new Date(ds); de.setDate(de.getDate() + 6);
     const dstr = fmt(ds) + "–" + fmt(de);
-    html += `<div class="week"><div class="wtitle">Неделя ${w+1} · <b>${dstr}</b></div><div class="wnum">${w+1}</div>`;
+    const isCur = ds.toDateString() === curMonday().toDateString();
+    html += `<div class="week${isCur ? " current" : ""}"><div class="wtitle">Неделя ${w+1} · <b>${dstr}</b></div><div class="wnum">${w+1}</div>`;
     row.forEach((name, c) => {
       const note = (data.notes || {})[name + "|" + c] || "";
       html += `<div class="cell" title="${note.replace(/"/g,"&quot;")}">
@@ -192,7 +202,7 @@ function renderAdmin() {
   const pl = $("#plist");
   if (!data) { pl.innerHTML = ""; return; }
   pl.innerHTML = (data.participants || []).map((s, i) =>
-    `<div class="prow"><span>${s}</span>
+    `<div class="prow" draggable="true" data-i="${i}"><span>${s}</span>
      <button class="sec" data-a="up" data-i="${i}">↑</button>
      <button class="sec" data-a="dn" data-i="${i}">↓</button>
      <button class="sec" data-a="ren" data-i="${i}">✎</button>
@@ -211,6 +221,22 @@ function renderAdmin() {
     else if (a == "del") { if (!confirm("Удалить «" + P[i] + "»?")) return; P.splice(i, 1); }
     else return;
     await saveData(); render(); renderAdmin();
+  });
+  let dragI = null;
+  pl.querySelectorAll(".prow").forEach(row => {
+    row.ondragstart = () => { dragI = +row.dataset.i; };
+    row.ondragover = e => { e.preventDefault(); row.classList.add("dragover"); };
+    row.ondragleave = () => row.classList.remove("dragover");
+    row.ondrop = async e => {
+      e.preventDefault(); row.classList.remove("dragover");
+      const j = +row.dataset.i;
+      if (dragI === null || dragI === j) return;
+      const P = data.participants;
+      const [it] = P.splice(dragI, 1);
+      P.splice(j, 0, it);
+      dragI = null;
+      await saveData(); render(); renderAdmin();
+    };
   });
 }
 
