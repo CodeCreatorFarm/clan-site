@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Клановые боссы — график</title>
+<style>
+:root{--bg:#12141a;--panel:#1a1d26;--card:#232836;--accent:#5b8cff;--text:#e8eaf0;--muted:#8b93a7;--border:#313747;--note:#ffcf6e;--red:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 'Segoe UI',system-ui,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;background:var(--panel);position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:600 14px 'Segoe UI',sans-serif;cursor:pointer}
+button.sec{background:#2a2f3d;color:var(--text)}
+button.danger{background:#2a2f3d;color:var(--red)}
+input{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:14px 'Segoe UI',sans-serif;outline:none}
+input:focus{border-color:var(--accent)}
+main{padding:12px 16px;max-width:1100px;margin:0 auto}
+#status{color:var(--muted);font-size:13px;margin:4px 0 10px}
+.head,.week{display:grid;grid-template-columns:36px repeat(4,1fr);gap:4px;margin-bottom:4px}
+.head div{font-weight:700;text-align:center;padding:8px 4px;background:var(--panel);border-radius:8px}
+.wnum{color:var(--muted);align-self:center;text-align:center;font-size:13px}
+.wtitle{display:none;grid-column:1/-1;margin:10px 0 2px;font-size:14px}
+.wtitle b{color:var(--muted)}
+.cell{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center;position:relative;min-height:64px}
+.boss{display:none;color:var(--accent);font-size:12px;font-weight:600;margin-bottom:2px}
+.name{font-weight:600;font-size:15px;word-break:break-word}
+.dates{color:var(--muted);font-size:12px;margin-top:2px}
+.note{color:var(--note);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pen{position:absolute;right:5px;bottom:3px;cursor:pointer;display:none;color:var(--muted);font-size:13px}
+body.admin .pen{display:block}
+#adminPanel{background:var(--panel);border-radius:10px;padding:12px;margin-bottom:14px}
+#adminPanel h2{margin:0 0 8px;font-size:16px}
+.prow{display:flex;align-items:center;gap:6px;margin:4px 0}
+.prow span{flex:1;overflow:hidden;text-overflow:ellipsis}
+.prow button{padding:4px 9px;font-size:13px}
+#addRow{display:flex;gap:6px;margin-top:10px}
+#addRow input{flex:1}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+#modalBox{background:var(--panel);border-radius:12px;padding:18px;width:100%;max-width:340px}
+#modalBox h3{margin:0 0 10px;font-size:16px}
+#modalBox input{width:100%;margin-bottom:10px}
+.mrow{display:flex;gap:8px}
+.mrow button{flex:1}
+@media(max-width:720px){
+ .head{display:none}
+ .week{grid-template-columns:1fr}
+ .wtitle{display:block}
+ .wnum{display:none}
+ .boss{display:block}
+ .cell{min-height:0;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:6px}
+ .note{white-space:normal;width:100%}
+}
+</style>
+</head>
+<body>
+<header>
+ <h1>Клановые боссы — график</h1>
+ <div>
+  <button id="loginBtn" class="sec">Вход</button>
+  <button id="logoutBtn" class="sec" hidden>Выйти</button>
+ </div>
+</header>
+<main>
+ <section id="adminPanel" hidden>
+  <h2>Управление участниками</h2>
+  <div id="plist"></div>
+  <div id="addRow"><input id="addName" placeholder="Новый ник или группа через запятую"><button id="addBtn">Добавить</button></div>
+ </section>
+ <div id="status"></div>
+ <section id="schedule"></section>
+</main>
+<div id="modal" hidden>
+ <div id="modalBox">
+  <h3 id="mTitle"></h3>
+  <input id="mInput">
+  <div class="mrow"><button id="mOk">Ок</button><button id="mCancel" class="sec">Отмена</button></div>
+ </div>
+</div>
+<script>
+// ====== НАСТРОЙКИ (измени под себя) ======
+const REPO = "CodeCreatorFarm/clan-site"; // твой логин/clan-site
+const BRANCH = "main";
+const ADMIN_PASS = "CrazyMonkey";          // пароль админа — смени на свой
+// =========================================
+const BOSSES = ["Пумба","Тролль","Споровик","Г.М.О."];
+const DEFAULT_PARTICIPANTS = ["Fen","DRAKARIS","шурик","FeRReRo","m...","Лорд Скобарь","Буняш","Sreda","«Игорь»","Румата","Вредина","vegetable","Господин","BiN","VERSUS","Jackson19","МаршалКочерыжка","Warrior","Окрошка","76 ВДД","Чё","ден","Roman SH","Djé","Lena","А тот самый","Metaphor","HoneyDamage","Архитектор","MayFlower","Васька","2garin 3mey","Диметрия, вирсав, Aster, kenas to be in, дельный, serg"];
+
+let data = null, isAdmin = false;
+let token = localStorage.getItem("gh_token") || "";
+const $ = s => document.querySelector(s);
+
+function api(path, opts = {}) {
+  const h = { "Accept": "application/vnd.github+json" };
+  if (token) h["Authorization"] = "Bearer " + token;
+  if (opts.json) h["Content-Type"] = "application/json";
+  return fetch("https://api.github.com/" + path, Object.assign({}, opts, { headers: h }))
+    .then(r => { if (!r.ok) throw new Error("GitHub " + r.status); return r.json(); });
+}
+
+async function loadData() {
+  try {
+    const r = await fetch(`https://raw.githubusercontent.com/${REPO}/${BRANCH}/data.json?t=${Date.now()}`);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+async function saveData() {
+  let sha;
+  try { sha = (await api(`repos/${REPO}/contents/data.json`)).sha; } catch (e) {}
+  const payload = {
+    message: "update data", branch: BRANCH,
+    content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 1))))
+  };
+  if (sha) payload.sha = sha;
+  await api(`repos/${REPO}/contents/data.json`, { method: "PUT", json: true, body: JSON.stringify(payload) });
+}
+
+function curMonday() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+function fmt(d) { return String(d.getDate()).padStart(2,"0") + "." + String(d.getMonth()+1).padStart(2,"0"); }
+
+function buildSchedule(slots) {
+  const n = slots.length; if (!n) return [];
+  const extra = (n - 1) % 4, rows = []; let P = 0;
+  for (let t = 0; t < 4 * n; t++) {
+    if (t % 4 === 0) rows.push([]);
+    rows[rows.length-1].push(slots[P % n]);
+    P++;
+    if (P % n === 0 && P < 4 * n) P += extra;
+  }
+  return rows;
+}
+
+function render() {
+  const sch = $("#schedule");
+  if (!data) {
+    sch.innerHTML = isAdmin
+      ? `<p>Данные ещё не созданы. <button id="createBtn">Создать стартовые данные</button></p>`
+      : `<p style="color:var(--muted)">График ещё не настроен администратором.</p>`;
+    if (isAdmin) $("#createBtn").onclick = async () => {
+      const a = curMonday(); a.setDate(a.getDate() + 7);
+      data = { participants: DEFAULT_PARTICIPANTS.slice(), notes: {}, anchor: a.toISOString().slice(0,10) };
+      await saveData(); render();
+    };
+    $("#status").textContent = "";
+    return;
+  }
+  const slots = data.participants || [], n = slots.length;
+  if (!n) { sch.innerHTML = `<p style="color:var(--muted)">Список пуст.</p>`; return; }
+  const anchor = new Date(data.anchor + "T00:00:00");
+  const elapsed = Math.max(0, Math.round((curMonday() - anchor) / 604800000));
+  const base = buildSchedule(slots), rot = elapsed % n;
+  const rows = base.slice(rot).concat(base.slice(0, rot));
+  const start = new Date(anchor); start.setDate(start.getDate() + 7 * elapsed);
+
+  let html = `<div class="head"><div>№</div>` + BOSSES.map(b => `<div>${b}</div>`).join("") + `</div>`;
+  rows.forEach((row, w) => {
+    const ds = new Date(start); ds.setDate(ds.getDate() + 7 * w);
+    const de = new Date(ds); de.setDate(de.getDate() + 6);
+    const dstr = fmt(ds) + "–" + fmt(de);
+    html += `<div class="week"><div class="wtitle">Неделя ${w+1} · <b>${dstr}</b></div><div class="wnum">${w+1}</div>`;
+    row.forEach((name, c) => {
+      const note = (data.notes || {})[name + "|" + c] || "";
+      html += `<div class="cell" title="${note.replace(/"/g,"&quot;")}">
+        <div class="boss">${BOSSES[c]}</div>
+        <div class="name">${name}</div>
+        <div class="dates">${dstr}</div>
+        ${note ? `<div class="note">${note}</div>` : ""}
+        <span class="pen" data-n="${name}" data-b="${c}">✎</span>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  sch.innerHTML = html;
+  $("#status").textContent = `Слотов: ${n} · недель в цикле: ${rows.length} · текущая неделя: ${fmt(curMonday())}`;
+  sch.querySelectorAll(".pen").forEach(p => p.onclick = () => editNote(p.dataset.n, +p.dataset.b));
+}
+
+function renderAdmin() {
+  const pl = $("#plist");
+  if (!data) { pl.innerHTML = ""; return; }
+  pl.innerHTML = (data.participants || []).map((s, i) =>
+    `<div class="prow"><span>${s}</span>
+     <button class="sec" data-a="up" data-i="${i}">↑</button>
+     <button class="sec" data-a="dn" data-i="${i}">↓</button>
+     <button class="sec" data-a="ren" data-i="${i}">✎</button>
+     <button class="danger" data-a="del" data-i="${i}">🗑</button></div>`).join("");
+  pl.querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const i = +b.dataset.i, a = b.dataset.a, P = data.participants;
+    if (a == "up" && i > 0) { [P[i-1], P[i]] = [P[i], P[i-1]]; }
+    else if (a == "dn" && i < P.length-1) { [P[i+1], P[i]] = [P[i], P[i+1]]; }
+    else if (a == "ren") {
+      const v = await modal("Переименовать", P[i]); if (v === null || !v.trim()) return;
+      const old = P[i]; P[i] = v.trim();
+      const nn = {};
+      for (const k in data.notes) { const [nm, bb] = k.split("|"); nn[nm === old ? P[i] + "|" + bb : k] = data.notes[k]; }
+      data.notes = nn;
+    }
+    else if (a == "del") { if (!confirm("Удалить «" + P[i] + "»?")) return; P.splice(i, 1); }
+    else return;
+    await saveData(); render(); renderAdmin();
+  });
+}
+
+function modal(title, value = "", ok = "Ок") {
+  return new Promise(res => {
+    $("#modal").hidden = false; $("#mTitle").textContent = title;
+    const inp = $("#mInput"); inp.value = value; inp.focus();
+    const done = v => { $("#modal").hidden = true; inp.onkeydown = null; res(v); };
+    $("#mOk").onclick = () => done(inp.value);
+    $("#mCancel").onclick = () => done(null);
+    inp.onkeydown = e => { if (e.key == "Enter") done(inp.value); };
+  });
+}
+
+async function editNote(name, b) {
+  if (!isAdmin) return;
+  const key = name + "|" + b;
+  const v = await modal(`Заметка: ${name} → ${BOSSES[b]}`, (data.notes || {})[key] || "", "Добавить");
+  if (v === null) return;
+  data.notes = data.notes || {};
+  if (v.trim()) data.notes[key] = v.trim(); else delete data.notes[key];
+  await saveData(); render();
+}
+
+$("#loginBtn").onclick = async () => {
+  const pass = await modal("Пароль админа", "", "Далее");
+  if (pass === null) return;
+  if (pass !== ADMIN_PASS) { alert("Неверный пароль"); return; }
+  const tok = await modal("Токен GitHub (ghp_...)", token, "Войти");
+  if (tok === null) return;
+  token = tok.trim();
+  try { await api("user"); } catch (e) { alert("Токен не работает"); return; }
+  localStorage.setItem("gh_token", token);
+  isAdmin = true; enterAdmin();
+};
+$("#logoutBtn").onclick = () => {
+  isAdmin = false; token = ""; localStorage.removeItem("gh_token");
+  document.body.classList.remove("admin");
+  $("#adminPanel").hidden = true; $("#loginBtn").hidden = false; $("#logoutBtn").hidden = true;
+  render();
+};
+function enterAdmin() {
+  document.body.classList.add("admin");
+  $("#adminPanel").hidden = false; $("#loginBtn").hidden = true; $("#logoutBtn").hidden = false;
+  render(); renderAdmin();
+}
+$("#addBtn").onclick = async () => {
+  const v = $("#addName").value.trim(); if (!v || !data) return;
+  data.participants.push(v); $("#addName").value = "";
+  await saveData(); render(); renderAdmin();
+};
+
+(async () => {
+  data = await loadData();
+  if (token) { try { await api("user"); isAdmin = true; enterAdmin(); } catch (e) {} }
+  if (!isAdmin) render();
+  setInterval(async () => { if (!isAdmin) { data = await loadData(); render(); } }, 60000);
+})();
+</script>
+</body>
+</html>
